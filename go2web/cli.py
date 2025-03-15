@@ -68,6 +68,17 @@ def make_http_request(url):
 
     return response_str
 
+def fetch_url(url):
+    response = make_http_request(url)
+    if response:
+        response_parts = response.split("\r\n\r\n", 1)
+        if len(response_parts) > 1:
+            print(response_parts[1])
+        else:
+            print("Received unexpected response format.")
+    else:
+        print("Failed to fetch URL content.")
+
 
 def main():
     parser = argparse.ArgumentParser(description="CLI tool to fetch content from the web")
@@ -77,7 +88,7 @@ def main():
     args = parser.parse_args()
 
     if args.url:
-        print(make_http_request(args.url))
+        fetch_url(args.url)
     elif args.search:
         print(f"Searching for: {args.search}")
     else:
