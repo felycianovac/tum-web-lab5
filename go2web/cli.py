@@ -2,8 +2,34 @@ import argparse
 from urllib.parse import urlparse
 import socket
 import ssl
+import os
+import hashlib
+
+def get_cache_file(url):
+    hashed = hashlib.md5(url.encode()).hexdigest()
+    return f"cache/{hashed}.cache"
+
+def save_cache(url, content):
+    os.makedirs("cache", exist_ok=True)
+    cache_file = get_cache_file(url)
+    with open(cache_file, "wb") as f:
+        f.write(content)
+
+
+def load_cache(url):
+    cache_file = get_cache_file(url)
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            return f.read()
+    return None
+
 
 def make_http_request(url):
+    cached_content = load_cache(url)
+    if cached_content:
+        print("Using cached content")
+        return cached_content.decode(errors="ignore")
+
     parsed_url = urlparse(url)
     if not parsed_url.netloc:
         print("Invalid URL")
@@ -38,7 +64,22 @@ def make_http_request(url):
         response += data
     sock.close()
 
-    return response.decode(errors="ignore")
+    response_str = response.decode(errors="ignore")
+
+    save_cache(url, response)
+
+    return response_str
+
+def fetch_url(url):
+    response = make_http_request(url)
+    if response:
+        response_parts = response.split("\r\n\r\n", 1)
+        if len(response_parts) > 1:
+            print(response_parts[1])
+        else:
+            print("Failed to parse response.")
+    else:
+        print("Failed to fetch URL content.")
 
 
 def main():
@@ -49,7 +90,7 @@ def main():
     args = parser.parse_args()
 
     if args.url:
-        print(make_http_request(args.url))
+        fetch_url(args.url)
     elif args.search:
         print(f"Searching for: {args.search}")
     else:
