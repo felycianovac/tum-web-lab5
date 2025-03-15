@@ -1,6 +1,7 @@
 import argparse
 from urllib.parse import urlparse
 import socket
+import ssl
 
 def make_http_request(url):
     parsed_url = urlparse(url)
@@ -11,6 +12,9 @@ def make_http_request(url):
     host = parsed_url.netloc
     path = parsed_url.path if parsed_url.path else "/"
 
+    use_ssl = parsed_url.scheme == "https"
+    port = 443 if use_ssl else 80
+
     request_headers = (
         f"GET {path} HTTP/1.1\r\n"
         f"Host: {host}\r\n"
@@ -19,7 +23,11 @@ def make_http_request(url):
         "\r\n"
     )
 
-    sock = socket.create_connection((host, 80))
+    sock = socket.create_connection((host, port))
+    if use_ssl:
+        context = ssl.create_default_context()
+        sock = context.wrap_socket(sock, server_hostname=host)
+
     sock.sendall(request_headers.encode())
 
     response = b""
