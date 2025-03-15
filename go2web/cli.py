@@ -4,6 +4,7 @@ import socket
 import ssl
 import os
 import hashlib
+from bs4 import BeautifulSoup
 
 def get_cache_file(url):
     hashed = hashlib.md5(url.encode()).hexdigest()
@@ -22,6 +23,16 @@ def load_cache(url):
         with open(cache_file, "rb") as f:
             return f.read()
     return None
+
+def clear_html_tags(html):
+        soup = BeautifulSoup(html, "html.parser")
+
+        for script_or_style in soup(["script", "style", "noscript"]):
+            script_or_style.decompose()
+
+        text = soup.get_text(separator="\n")
+        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())  # Clean empty lines
+        return text
 
 
 def make_http_request(url):
@@ -75,7 +86,7 @@ def fetch_url(url):
     if response:
         response_parts = response.split("\r\n\r\n", 1)
         if len(response_parts) > 1:
-            print(response_parts[1])
+            print(clear_html_tags(response_parts[1]))
         else:
             print("Failed to parse response.")
     else:
