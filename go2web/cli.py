@@ -2,8 +2,32 @@ import argparse
 from urllib.parse import urlparse
 import socket
 import ssl
+import os
+import hashlib
+
+def get_cache_file(url):
+    hashed = hashlib.md5(url.encode()).hexdigest()
+    return f"cache/{hashed}.cache"
+
+def save_cache(url, content):
+    os.makedirs("cache", exist_ok=True)
+    cache_file = get_cache_file(url)
+    with open(cache_file, "w", encoding="utf-8") as f:
+        f.write(content)
+
+def load_cache(url):
+    cache_file = get_cache_file(url)
+    if os.path.exists(cache_file):
+        with open(cache_file, "r", encoding="utf-8") as f:
+            return f.read()
+    return None
 
 def make_http_request(url):
+    cached_content = load_cache(url)
+    if cached_content:
+        print("Using cached content")
+        return cached_content
+
     parsed_url = urlparse(url)
     if not parsed_url.netloc:
         print("Invalid URL")
@@ -38,7 +62,11 @@ def make_http_request(url):
         response += data
     sock.close()
 
-    return response.decode(errors="ignore")
+    response_str = response.decode(errors="ignore")
+
+    save_cache(url, response_str)
+
+    return response_str
 
 
 def main():
