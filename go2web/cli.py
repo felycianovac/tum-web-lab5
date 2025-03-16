@@ -8,6 +8,8 @@ from bs4 import BeautifulSoup
 import json
 import os
 from dotenv import load_dotenv
+import webbrowser
+
 
 load_dotenv()
 
@@ -57,7 +59,6 @@ def parse_headers(headers):
             headers[key.lower()] = value
 
     return status_code, headers, body
-
 
 def make_http_request(url, redirect_count=0, initial_url=None):
     if initial_url is None:
@@ -150,7 +151,6 @@ def fetch_url(url):
     else:
         print(f"\033[91m Failed to fetch URL content. \033[0m")
 
-
 def search_web(query):
     if not GOOGLE_API_KEY or not SEARCH_ENGINE_ID:
         print("\033[91m Missing API key or Search Engine ID. Set them in the .env file.\033[0m")
@@ -164,6 +164,9 @@ def search_web(query):
         response.raise_for_status()
         data = response.json()
         print("\033[92m🔍 Top 10 Search Results:\033[0m")
+
+        search_results = {}
+
         for i, item in enumerate(data.get("items", [])[:10], start=1):
             title = item.get("title", "No Title")
             link = item.get("link", "No Link")
@@ -172,6 +175,18 @@ def search_web(query):
             print(f"\033[94m{i}. {title}\033[0m")
             print(f"   📎 {link}")
             print(f"   📝 {snippet}\n")
+
+            search_results[str(i)] = link
+
+        choice = input("\n\033[93mEnter the number of the link to open (or press Enter to skip): \033[0m").strip()
+
+        if choice in search_results:
+            print(f"\n\033[92mOpening {search_results[choice]} in browser...\033[0m")
+            webbrowser.open(search_results[choice])
+        elif choice == "":
+            print("\033[93mNo selection made. Exiting...\033[0m")
+        else:
+            print("\033[91mNo valid selection made.\033[0m")
 
     except requests.exceptions.RequestException as e:
         print(f"\033[91m[ERROR] Failed to fetch search results: {e}\033[0m")
