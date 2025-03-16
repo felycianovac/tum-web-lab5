@@ -9,11 +9,15 @@ import json
 import os
 from dotenv import load_dotenv
 import webbrowser
+import time
+from datetime import datetime
+import shutil
 
 
 load_dotenv()
 
 MAX_REDIRECTS = 5
+CACHE_EXPIRY = 3600
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID")
 
@@ -24,16 +28,41 @@ def get_cache_file(url):
 def save_cache(url, content):
     os.makedirs("cache", exist_ok=True)
     cache_file = get_cache_file(url)
+    timestamp = str(time.time())
     with open(cache_file, "wb") as f:
-        f.write(content)
+        f.write(timestamp.encode() + b"\n" + content)
+    print(f"\033[92mNew cache saved\033[0m")
 
 
 def load_cache(url):
     cache_file = get_cache_file(url)
     if os.path.exists(cache_file):
         with open(cache_file, "rb") as f:
-            return f.read()
+            lines = f.readlines()
+            if len(lines) < 2:
+                return None
+
+            timestamp = float(lines[0].decode().strip())
+            cached_data = b"".join(lines[1:])
+
+            if (time.time() - timestamp) < CACHE_EXPIRY:
+                cache_time = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                print(f"\033[92mUsing cached content (saved on {cache_time})\033[0m")
+                return cached_data
+            else:
+                print(f"\033[93mCache expired for {url}. Fetching fresh data.\033[0m")
+                try:
+                    time.sleep(0.5)
+                    os.remove(cache_file)
+                except PermissionError:
+                    try:
+                        shutil.rmtree(cache_file, ignore_errors=True)
+                        print("\033[91mCache automatically removed.\033[0m")
+                    except Exception as e:
+                        print(f"\033[91m Could not delete cache file: {e}\033[0m")
+
     return None
+
 
 def clear_html_tags(html):
         soup = BeautifulSoup(html, "html.parser")
@@ -71,7 +100,6 @@ def make_http_request(url, redirect_count=0, initial_url=None):
 
     cached_content = load_cache(url)
     if cached_content:
-        print("Using cached content")
         return cached_content.decode(errors="ignore")
 
     parsed_url = urlparse(url)
