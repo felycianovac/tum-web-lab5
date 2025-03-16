@@ -123,7 +123,7 @@ def make_http_request(url, redirect_count=0, initial_url=None):
         return response_str
 
     except Exception as e:
-        print(f"Error fetching {url}: {e}")
+        print(f"\033[91m Error fetching {url}: {e} \033[0m")
         return None
 
 
@@ -153,7 +153,7 @@ def fetch_url(url):
 
 def search_web(query):
     if not GOOGLE_API_KEY or not SEARCH_ENGINE_ID:
-        print("\033[91m[ERROR] Missing API key or Search Engine ID. Set them in the .env file.\033[0m")
+        print("\033[91m Missing API key or Search Engine ID. Set them in the .env file.\033[0m")
         return
 
     search_url = (
@@ -180,7 +180,7 @@ def search_web(query):
 def main():
     parser = argparse.ArgumentParser(description="CLI tool to fetch content from the web")
     parser.add_argument("-u", "--url", help="Fetch content from a URL")
-    parser.add_argument("-s", "--search", help="Search the web for a query")
+    parser.add_argument("-s", "--search", nargs="+",  help="Search the web for a query")
 
     args = parser.parse_args()
 
