@@ -2,12 +2,18 @@ import argparse
 from urllib.parse import urlparse, urljoin
 import socket
 import ssl
-import os
+import requests
 import hashlib
 from bs4 import BeautifulSoup
 import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 MAX_REDIRECTS = 5
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+SEARCH_ENGINE_ID = os.getenv("SEARCH_ENGINE_ID")
 
 def get_cache_file(url):
     hashed = hashlib.md5(url.encode()).hexdigest()
@@ -145,6 +151,32 @@ def fetch_url(url):
         print(f"\033[91m Failed to fetch URL content. \033[0m")
 
 
+def search_web(query):
+    if not GOOGLE_API_KEY or not SEARCH_ENGINE_ID:
+        print("\033[91m[ERROR] Missing API key or Search Engine ID. Set them in the .env file.\033[0m")
+        return
+
+    search_url = (
+        f"https://www.googleapis.com/customsearch/v1?q={query}&key={GOOGLE_API_KEY}&cx={SEARCH_ENGINE_ID}"
+    )
+    try:
+        response = requests.get(search_url)
+        response.raise_for_status()
+        data = response.json()
+        print("\033[92m🔍 Top 10 Search Results:\033[0m")
+        for i, item in enumerate(data.get("items", [])[:10], start=1):
+            title = item.get("title", "No Title")
+            link = item.get("link", "No Link")
+            snippet = item.get("snippet", "No Description")
+
+            print(f"\033[94m{i}. {title}\033[0m")
+            print(f"   📎 {link}")
+            print(f"   📝 {snippet}\n")
+
+    except requests.exceptions.RequestException as e:
+        print(f"\033[91m[ERROR] Failed to fetch search results: {e}\033[0m")
+
+
 def main():
     parser = argparse.ArgumentParser(description="CLI tool to fetch content from the web")
     parser.add_argument("-u", "--url", help="Fetch content from a URL")
@@ -155,7 +187,7 @@ def main():
     if args.url:
         fetch_url(args.url)
     elif args.search:
-        print(f"Searching for: {args.search}")
+        search_web(args.search)
     else:
         parser.print_help()
 

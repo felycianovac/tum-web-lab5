@@ -33,3 +33,4 @@ nosetests.xml
 coverage.xml
 pytest_cache/
 __coverage__/
+.env
