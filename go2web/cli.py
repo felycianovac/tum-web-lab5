@@ -5,6 +5,7 @@ import ssl
 import os
 import hashlib
 from bs4 import BeautifulSoup
+import json
 
 def get_cache_file(url):
     hashed = hashlib.md5(url.encode()).hexdigest()
@@ -34,6 +35,15 @@ def clear_html_tags(html):
         text = "\n".join(line.strip() for line in text.splitlines() if line.strip())  # Clean empty lines
         return text
 
+def parse_headers(headers):
+    header_section, _, body = headers.partition("\r\n\r\n")
+    headers = {}
+    for line in header_section.split("\r\n")[1:]:
+        if ": " in line:
+            key, value = line.split(": ", 1)
+            headers[key.lower()] = value
+    return headers, body
+
 
 def make_http_request(url):
     cached_content = load_cache(url)
@@ -56,6 +66,7 @@ def make_http_request(url):
         f"GET {path} HTTP/1.1\r\n"
         f"Host: {host}\r\n"
         "User-Agent: go2web/1.0\r\n"
+        "Accept: application/json, text/html\r\n"
         "Connection: close\r\n"
         "\r\n"
     )
@@ -84,9 +95,18 @@ def make_http_request(url):
 def fetch_url(url):
     response = make_http_request(url)
     if response:
-        response_parts = response.split("\r\n\r\n", 1)
-        if len(response_parts) > 1:
-            print(clear_html_tags(response_parts[1]))
+        headers, body = parse_headers(response)
+        content_type = headers.get("content-type", "")
+
+        if "application/json" in content_type:
+            try:
+                json_data = json.loads(body)
+                print(json.dumps(json_data, indent=4))
+            except json.JSONDecodeError:
+                print("Failed to parse JSON response.")
+
+        elif "text/html" in content_type:
+            print(clear_html_tags(body))
         else:
             print("Failed to parse response.")
     else:
