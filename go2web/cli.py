@@ -38,11 +38,11 @@ def load_cache(url):
 def clear_html_tags(html):
         soup = BeautifulSoup(html, "html.parser")
 
-        for script_or_style in soup(["script", "style", "noscript"]):
+        for script_or_style in soup(["script", "style", "noscript", "header", "footer", "nav", "aside"]):
             script_or_style.decompose()
 
-        text = soup.get_text(separator="\n")
-        text = "\n".join(line.strip() for line in text.splitlines() if line.strip())
+        content_blocks = soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6", "p", "li"])
+        text = "\n".join(block.get_text(separator=" ").strip() for block in content_blocks if block.get_text().strip())
         return text
 
 def parse_headers(headers):
