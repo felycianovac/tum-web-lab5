@@ -220,17 +220,32 @@ def search_web(query):
         print(f"\033[91m[ERROR] Failed to fetch search results: {e}\033[0m")
 
 
+def clear_cache():
+    try:
+        shutil.rmtree("cache")
+        print("\033[92mCache cleared.\033[0m")
+    except Exception as e:
+        print(f"\033[91mFailed to clear cache: {e}\033[0m")
+
 def main():
-    parser = argparse.ArgumentParser(description="CLI tool to fetch content from the web")
+    parser = argparse.ArgumentParser(description="CLI tool to fetch content from the web", add_help=False)
     parser.add_argument("-u", "--url", help="Fetch content from a URL")
     parser.add_argument("-s", "--search", nargs="+",  help="Search the web for a query")
+    parser.add_argument("-c", "--clear-cache", action="store_true", help="Clear cached content")
+    parser.add_argument("-h", "--help", action="store_true", help="Show this help message")
 
     args = parser.parse_args()
+
+    if args.help:
+        parser.print_help()
+        return
 
     if args.url:
         fetch_url(args.url)
     elif args.search:
         search_web(args.search)
+    elif args.clear_cache:
+        clear_cache()
     else:
         parser.print_help()
 
