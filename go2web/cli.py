@@ -89,6 +89,34 @@ def parse_headers(headers):
 
     return status_code, headers, body
 
+
+def decode_chunked_response(body):
+    decoded_body = b""
+    pos = 0
+
+    while pos < len(body):
+        chunk_size_end = body.find(b"\r\n", pos)
+        if chunk_size_end == -1:
+            break
+
+        try:
+            chunk_size_hex = body[pos:chunk_size_end].decode('ascii').strip()
+            chunk_size = int(chunk_size_hex, 16)
+        except (ValueError, UnicodeDecodeError):
+            break
+        if chunk_size == 0:
+            break
+
+        pos = chunk_size_end + 2
+
+        chunk_data = body[pos:pos + chunk_size]
+        decoded_body += chunk_data
+
+        pos = pos + chunk_size + 2
+
+    return decoded_body
+
+
 def make_http_request(url, redirect_count=0, initial_url=None):
     if initial_url is None:
         initial_url = url
@@ -97,14 +125,13 @@ def make_http_request(url, redirect_count=0, initial_url=None):
         print(f"\033[91m Too many redirects for {initial_url} \033[0m")
         return None
 
-
     cached_content = load_cache(url)
     if cached_content:
         return cached_content.decode(errors="ignore")
 
     parsed_url = urlparse(url)
     if not parsed_url.netloc:
-        print(f"\033[Invalid URL\033[0m")
+        print(f"\033[91m Invalid URL \033[0m")
         return None
 
     host = parsed_url.netloc
@@ -138,23 +165,43 @@ def make_http_request(url, redirect_count=0, initial_url=None):
             response += data
         sock.close()
 
-        response_str = response.decode(errors="ignore")
+        header_end = response.find(b"\r\n\r\n")
+        if header_end == -1:
+            print(f"\033[91m Invalid response format \033[0m")
+            return None
 
-        status_code, headers, body = parse_headers(response_str)
+        headers_raw = response[:header_end]
+        body = response[header_end + 4:]
 
-        if status_code in [301, 302, 307, 308] and  "location" in headers:
-            new_url = urljoin(url, headers["location"])
+        headers = {}
+        header_lines = headers_raw.split(b"\r\n")
+        status_line = header_lines[0].decode(errors="ignore")
+        status_code = int(status_line.split(" ")[1]) if len(status_line.split(" ")) > 1 else 200
+
+        for line in header_lines[1:]:
+            if b": " in line:
+                key, value = line.split(b": ", 1)
+                headers[key.lower()] = value
+
+        if headers.get(b"transfer-encoding", b"").lower() == b"chunked":
+            body = decode_chunked_response(body)
+            decoded_headers = "\r\n".join(line.decode(errors="ignore") for line in header_lines)
+            decoded_headers = decoded_headers.replace("Transfer-Encoding: chunked", "")  # Remove chunked header
+
+            response = (decoded_headers + "\r\n\r\n").encode() + body
+
+        if status_code in [301, 302, 307, 308] and b"location" in headers:
+            new_url = urljoin(url, headers[b"location"].decode())
             print(f"\033[93m Redirecting to {new_url} \033[0m")
             return make_http_request(new_url, redirect_count + 1, initial_url)
 
         save_cache(url, response)
 
-        return response_str
+        return response.decode(errors="ignore")
 
     except Exception as e:
         print(f"\033[91m Error fetching {url}: {e} \033[0m")
         return None
-
 
 def fetch_url(url):
     response = make_http_request(url)
@@ -162,20 +209,52 @@ def fetch_url(url):
         return
 
     if response:
-        status_code, headers, body = parse_headers(response)
-        content_type = headers.get("content-type", "")
+        try:
+            header_end = response.find("\r\n\r\n")
+            if header_end == -1:
+                print(f"\033[91m Invalid response format \033[0m")
+                return
 
-        if "application/json" in content_type:
-            try:
-                json_data = json.loads(body)
-                print(json.dumps(json_data, indent=4))
-            except json.JSONDecodeError:
-                print(f"\033[91m Failed to parse JSON response. \033[0m")
+            headers_text = response[:header_end]
+            body = response[header_end + 4:]
 
-        elif "text/html" in content_type:
-            print(clear_html_tags(body))
-        else:
-            print(f"\033[91m Failed to parse response. \033[0m")
+            headers = {}
+            for line in headers_text.split("\r\n")[1:]:
+                if ": " in line:
+                    key, value = line.split(": ", 1)
+                    headers[key.lower()] = value
+
+            content_type = headers.get("content-type", "").lower()
+
+            if "application/json" in content_type:
+                if "/stream/" in url:
+                    for line in body.split("\n"):
+                        line = line.strip()
+                        if line and not line.startswith(("{", "}")):
+                            continue
+                        if line:
+                            try:
+                                json_obj = json.loads(line)
+                                print(json.dumps(json_obj, indent=2))
+                            except json.JSONDecodeError:
+                                pass
+                else:
+                    try:
+                        json_obj = json.loads(body)
+                        print(json.dumps(json_obj, indent=2))
+                    except json.JSONDecodeError:
+                        print(f"\033[91m Failed to parse JSON response. \033[0m")
+                        print(body[:500])
+
+            elif "text/html" in content_type:
+                print(clear_html_tags(body))
+
+            else:
+                print(f"\033[91m Content type: {content_type} \033[0m")
+                print(body[:1000])
+
+        except Exception as e:
+            print(f"\033[91m Error processing response: {e} \033[0m")
     else:
         print(f"\033[91m Failed to fetch URL content. \033[0m")
 
